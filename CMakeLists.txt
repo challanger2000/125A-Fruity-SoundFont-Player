@@ -24,16 +24,16 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 4)
   endif()
   add_test(NAME x86_mock_pcm_contract
    COMMAND $<TARGET_FILE:fruity_probe32> $<TARGET_FILE:fruity_mock_engine>
-   "\${CMAKE_CURRENT_SOURCE_DIR}/tests/mock-bank.txt"
-   "\${CMAKE_CURRENT_BINARY_DIR}/mock-output.wav")
+   "${CMAKE_CURRENT_SOURCE_DIR}/tests/mock-bank.txt"
+   "${CMAKE_CURRENT_BINARY_DIR}/mock-output.wav")
   add_test(NAME x86_missing_asset_is_rejected
    COMMAND $<TARGET_FILE:fruity_probe32> $<TARGET_FILE:fruity_mock_engine>
-   "\${CMAKE_CURRENT_SOURCE_DIR}/tests/DOES-NOT-EXIST.sf2"
-   "\${CMAKE_CURRENT_BINARY_DIR}/should-not-exist.wav")
+   "${CMAKE_CURRENT_SOURCE_DIR}/tests/DOES-NOT-EXIST.sf2"
+   "${CMAKE_CURRENT_BINARY_DIR}/should-not-exist.wav")
   set_tests_properties(x86_missing_asset_is_rejected PROPERTIES WILL_FAIL TRUE)
  endif()
 elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
- if(NOT DEFINED VST3_SDK_ROOT OR NOT EXISTS "\${VST3_SDK_ROOT}/CMakeLists.txt")
+ if(NOT DEFINED VST3_SDK_ROOT OR NOT EXISTS "${VST3_SDK_ROOT}/CMakeLists.txt")
   message(FATAL_ERROR "VST3_SDK_ROOT must name a pinned recursive VST3 SDK checkout")
  endif()
  set(SMTG_ENABLE_VST3_PLUGIN_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -43,10 +43,10 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
  set(SMTG_CREATE_BUNDLE_FOR_WINDOWS OFF CACHE BOOL "" FORCE)
  set(SMTG_RUN_VST_VALIDATOR OFF CACHE BOOL "" FORCE)
  set(SMTG_CREATE_MODULE_INFO OFF CACHE BOOL "" FORCE)
- add_subdirectory("\${VST3_SDK_ROOT}" "\${CMAKE_BINARY_DIR}/steinberg")
- file(TO_CMAKE_PATH "\${VST3_SDK_ROOT}" _sdk)
+ add_subdirectory("${VST3_SDK_ROOT}" "${CMAKE_BINARY_DIR}/steinberg")
+ file(TO_CMAKE_PATH "${VST3_SDK_ROOT}" _sdk)
  smtg_add_vst3plugin(FruitySoundFont
-   "\${_sdk}/public.sdk/source/main/dllmain.cpp"
+   "${_sdk}/public.sdk/source/main/dllmain.cpp"
    src/vst3/WorkerBridge.cpp
    src/vst3/Processor.cpp
    src/vst3/Controller.hpp
