@@ -58,7 +58,16 @@ bool WorkerBridge::start(std::uint32_t sampleRate){
  }
  process_=pi.hProcess;thread_=pi.hThread;
  requested_=0;played_=0;
- return true;
+ // setupProcessing is a control-thread operation. Do not lose the first MIDI
+ // block while Windows starts the helper or finishes loading the SF2.
+ for(unsigned tries=0;tries<200;tries++){
+   if(isReady())return true;
+   if(read(&shared_->status)<0 || WaitForSingleObject(process_,0)==WAIT_OBJECT_0){
+     stop();return false;
+   }
+   Sleep(5); // NEVER wait from process() or another realtime callback.
+ }
+ stop();return false;
 }
 bool WorkerBridge::isReady() const noexcept{
  return shared_ && read(&shared_->status)==ipc::kReady;

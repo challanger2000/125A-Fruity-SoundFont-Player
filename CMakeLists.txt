@@ -51,6 +51,13 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
    src/vst3/Processor.cpp
    src/vst3/Controller.hpp
    src/vst3/Factory.cpp)
+ add_executable(FruityBridgeSmoke tests/BridgeSmoke.cpp src/vst3/WorkerBridge.cpp)
+ target_include_directories(FruityBridgeSmoke PRIVATE src)
+ target_compile_features(FruityBridgeSmoke PRIVATE cxx_std_23)
+ target_compile_definitions(FruityBridgeSmoke PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+ if(MSVC)
+  target_compile_options(FruityBridgeSmoke PRIVATE /W4 /WX)
+ endif()
  target_compile_features(FruitySoundFont PRIVATE cxx_std_23)
  target_include_directories(FruitySoundFont PRIVATE src)
  target_compile_definitions(FruitySoundFont PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

@@ -95,12 +95,28 @@ jobs:
       - name: Compile x64 VST3
         shell: pwsh
         run: |
-          cmake --build build64 --config Release --target FruitySoundFont --parallel 2
+          cmake --build build64 --config Release --target FruitySoundFont FruityBridgeSmoke --parallel 2
           if ($LASTEXITCODE -ne 0) { throw "MSVC VST3 build failed" }
       - uses: actions/download-artifact@v4
         with:
           name: proprietary-free-x86-helper
           path: helper-stage
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-only-x86-fake-engine
+          path: smoke-engine
+      - name: Prove original-ABI worker delivers MIDI-triggered PCM through x64 IPC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'smoke-stage/Contents'
+          New-Item -ItemType Directory -Force -Path "$root/x86_64-win","$root/Resources" | Out-Null
+          Copy-Item 'build64/Release/FruityBridgeSmoke.exe' "$root/x86_64-win/FruityBridgeSmoke.exe"
+          Copy-Item 'helper-stage/125A-Fruity-Helper32.exe' "$root/Resources/125A-Fruity-Helper32.exe"
+          Copy-Item 'smoke-engine/fruity_mock_engine.dll' "$root/Resources/FLSPro.dll"
+          Copy-Item 'tests/mock-bank.txt' "$root/Resources/SynthBank.sf2"
+          & "$root/x86_64-win/FruityBridgeSmoke.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'FAIL x64/x86 worker independent audio and MIDI smoke' }
       - name: Build correctly named installable candidate directory
         shell: pwsh
         run: |
