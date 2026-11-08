@@ -18,6 +18,35 @@ jobs:
         run: cmake --build build32 --config Release --parallel 2
       - name: Run actual x86 mock fixture (NOT original synth)
         run: ctest --test-dir build32 -C Release --output-on-failure
+      - name: Test packaged BAT with fake x86 engine (positive and missing-bank rejection)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fixture = Join-Path $env:RUNNER_TEMP 'fruity-bat-contract'
+          $source = Join-Path $fixture 'src/Fruity Soundfont Player'
+          New-Item -ItemType Directory -Force -Path (Join-Path $source 'Data') | Out-Null
+          Copy-Item 'build32/Release/fruity_mock_engine.dll' (Join-Path $source 'FLSPro.dll')
+          Copy-Item 'tests/mock-bank.txt' (Join-Path $source 'Data/Default.sf2')
+          Copy-Item 'build32/Release/125A-Fruity-Probe32.exe' (Join-Path $fixture '125A-Fruity-Probe32.exe')
+          Copy-Item 'scripts/Test-Fruity-Original-Engine.bat' (Join-Path $fixture 'Test-Fruity-Original-Engine.bat')
+          $archive = Join-Path $fixture 'Fruity Soundfont Player.zip'
+          Compress-Archive -Path $source -DestinationPath $archive -Force
+          & (Join-Path $fixture 'Test-Fruity-Original-Engine.bat')
+          if ($LASTEXITCODE -ne 0) { throw 'Mock positive: BAT failed to locate bank or engine' }
+          $log = Get-Content (Join-Path $fixture 'TEST_ERGEBNIS.txt') -Raw
+          if ($log -notmatch 'CHECK ZIP=OK DLL=OK BANK=OK' -or $log -notmatch 'PASS ORIGINAL ENGINE PCM PROBE') {
+            throw 'Positive BAT lacks actual verified PCM probe completion'
+          }
+          $wav = Join-Path $fixture 'TestOriginal.wav'
+          if (-not (Test-Path $wav) -or (Get-Item $wav).Length -le 44) { throw 'Positive BAT did not produce WAV' }
+          Remove-Item (Join-Path $source 'Data/Default.sf2')
+          Compress-Archive -Path $source -DestinationPath $archive -Force
+          & (Join-Path $fixture 'Test-Fruity-Original-Engine.bat')
+          if ($LASTEXITCODE -ne 4) { throw 'Missing-bank BAT must exit 4, not run a stale or guessed asset' }
+          $log = Get-Content (Join-Path $fixture 'TEST_ERGEBNIS.txt') -Raw
+          if ($log -notmatch 'ERROR ASSETS' -or $log -match 'PASS ORIGINAL ENGINE') { throw 'Missing bank accepted as success' }
+          if (Test-Path $wav) { throw 'Stale output WAV survived missing-bank test' }
+          Write-Host 'P99 contract: ZIP extraction and correct DLL/SF2 path positive/negative PASS (mock only)' 
       - name: Stage helper without third-party DLL
         shell: pwsh
         run: |
@@ -88,4 +117,61 @@ jobs:
           name: original-engine-vst3-development-candidate
           path: stage/
           if-no-files-found: error
+          retention-days: 7
+
+  independent-test-lab:
+    needs: x64
+    runs-on: windows-2022
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: original-engine-vst3-development-candidate
+          path: candidate
+      - name: Build the actual universal 125A Plugin Test Lab, pinned to reviewed main
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/challanger2000/125A-Plugin-Test-Lab.git test-lab
+          if ($LASTEXITCODE -ne 0) { throw 'Could not clone central Test Lab' }
+          git -C test-lab checkout bc839e345bfc5657f9196f7db8d6945584e1bec7
+          if ($LASTEXITCODE -ne 0) { throw 'Could not checkout pinned Lab commit' }
+          $sha = git -C test-lab rev-parse HEAD
+          if ($sha -ne 'bc839e345bfc5657f9196f7db8d6945584e1bec7') { throw 'Wrong Test Lab source' }
+          cmake -S test-lab -B lab-build -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Test Lab configure failed' }
+          cmake --build lab-build --config Release --target TestLabHost TestLabStateStress TestLabGUI --parallel 3
+          if ($LASTEXITCODE -ne 0) { throw 'Test Lab native hosts failed to build' }
+      - name: Execute actual Lab VST3 discovery and technical quickcheck
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $plugin = (Resolve-Path 'candidate/125A Fruity SoundFont Player.vst3').Path
+          $gui = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_GUI.exe')
+          $audio = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
+          $stress = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_State_Stress.exe')
+          if ($gui.Count -ne 1 -or $audio.Count -ne 1 -or $stress.Count -ne 1) {
+            throw 'Actual central Test Lab native hosts missing or ambiguous'
+          }
+          New-Item -ItemType Directory -Force lab-results | Out-Null
+          python test-lab/tests/run_vst3_auto_discovery.py --plugin "$plugin" --gui-host "$($gui[0].FullName)" --audio-host "$($audio[0].FullName)" --stress-host "$($stress[0].FullName)" --out 'lab-results/discovery'
+          if ($LASTEXITCODE -ne 0) { throw 'Central Test Lab failed real native VST3 discovery' }
+          $discovery = Get-Content 'lab-results/discovery/DISCOVERY-RESULT.json' -Raw | ConvertFrom-Json
+          if ($discovery.status -ne 'DISCOVERY_COMPLETE' -or $discovery.release_approved -ne $false) { throw 'Invalid Lab discovery evidence' }
+          python test-lab/tests/run_plugin_quickcheck.py --plugin "$plugin" --host "$($audio[0].FullName)" --stress-host "$($stress[0].FullName)" --gui-host "$($gui[0].FullName)" --out 'lab-results/technical' --timeout 120
+          $rc = $LASTEXITCODE
+          $quick = Get-Content 'lab-results/technical/QUICKCHECK-RESULT.json' -Raw | ConvertFrom-Json
+          if ($quick.release_approved -ne $false) { throw 'Central Lab incorrectly approved unreleased instrument' }
+          if ($rc -ne 0 -or $quick.status -ne 'TECHNICAL_PASS') {
+            throw 'Central Test Lab rejected candidate (see independently recorded evidence)'
+          }
+          Write-Host 'Test Lab technical host gates PASS; original-engine PCM and DAW are NOT VERIFIED'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-125a-test-lab-fruity-evidence
+          path: lab-results/
+          if-no-files-found: warn
           retention-days: 7
