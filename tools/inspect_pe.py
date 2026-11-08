@@ -8,7 +8,6 @@ No proprietary bytes are copied into the repository.
 """
 import argparse
 import hashlib
-import io
 import json
 from pathlib import Path
 import struct
@@ -31,7 +30,7 @@ def inspect_pe(data):
     if data[:2] != b"MZ":
         raise ValueError("not an MZ executable")
     peoff = u32(data, 0x3C)
-    if peoff + 24 > len(data) or data[peoff:peoff + 4] != b"PE\\0\\0":
+    if peoff + 24 > len(data) or data[peoff:peoff + 4] != bytes.fromhex("50450000"):
         raise ValueError("invalid PE signature")
     coff = peoff + 4
     machine = u16(data, coff)
@@ -73,7 +72,7 @@ def inspect_pe(data):
         t = rva_to_offset(names_rva, num_names * 4) if num_names else 0
         for i in range(num_names):
             p = rva_to_offset(u32(data, t + i * 4))
-            end = data.find(b"\\0", p, min(p + 2048, len(data)))
+            end = data.find(bytes([0]), p, min(p + 2048, len(data)))
             if end < 0:
                 raise ValueError("unterminated export name")
             exports.append(data[p:end].decode("ascii", errors="replace"))
