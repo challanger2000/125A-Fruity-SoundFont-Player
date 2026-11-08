@@ -1,6 +1,6 @@
 #include "vst3/Processor.hpp"
 #include "vst3/PluginIDs.hpp"
-#include "base/source/fstreamer.h"
+#include "pluginterfaces/base/ibstream.h"
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include <algorithm>
