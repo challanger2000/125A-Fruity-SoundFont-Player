@@ -47,6 +47,7 @@ jobs:
           if ($log -notmatch 'ERROR ASSETS' -or $log -match 'PASS ORIGINAL ENGINE') { throw 'Missing bank accepted as success' }
           if (Test-Path $wav) { throw 'Stale output WAV survived missing-bank test' }
           Write-Host 'P99 contract: ZIP extraction and correct DLL/SF2 path positive/negative PASS (mock only)' 
+          exit 0
       - name: Stage helper without third-party DLL
         shell: pwsh
         run: |
