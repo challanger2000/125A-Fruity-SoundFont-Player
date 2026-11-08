@@ -1,0 +1,90 @@
+name: Windows x86 helper and x64 VST3 candidate
+on:
+  push:
+    branches:
+      - research/original-engine-abi
+  workflow_dispatch:
+
+jobs:
+  x86:
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure Win32 C++23 probe and helper
+        run: cmake -S . -B build32 -G "Visual Studio 17 2022" -A Win32 -DBUILD_TESTING=ON
+      - name: Compile x86 helper and deterministic mock
+        run: cmake --build build32 --config Release --parallel 2
+      - name: Run actual x86 mock fixture (NOT original synth)
+        run: ctest --test-dir build32 -C Release --output-on-failure
+      - name: Stage helper without third-party DLL
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path helper-stage | Out-Null
+          Copy-Item "build32/Release/125A-Fruity-Helper32.exe" "helper-stage/125A-Fruity-Helper32.exe"
+          $p = [IO.File]::ReadAllBytes((Resolve-Path "helper-stage/125A-Fruity-Helper32.exe"))
+          $pe = [BitConverter]::ToInt32($p, 0x3c)
+          if ([BitConverter]::ToUInt16($p, $pe + 4) -ne 0x014c) { throw "Helper is not x86" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proprietary-free-x86-helper
+          path: helper-stage/
+          if-no-files-found: error
+          retention-days: 7
+
+  x64:
+    needs: x86
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain pinned official Steinberg VST3 SDK
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/steinbergmedia/vst3sdk.git sdk
+          git -C sdk checkout 3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96
+          git -C sdk submodule update --init --recursive
+          $rev = git -C sdk rev-parse HEAD
+          if ($rev -ne "3cdf9ca5d1f5b1b21e0a86832aa4abe55607bd96") { throw "Wrong VST3 SDK" }
+      - name: Configure native Windows x64 VST3
+        shell: pwsh
+        run: |
+          $sdk = (Resolve-Path "sdk").Path
+          cmake -S . -B build64 -G "Visual Studio 17 2022" -A x64 "-DVST3_SDK_ROOT=$sdk" -DBUILD_TESTING=OFF
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
+      - name: Compile x64 VST3
+        shell: pwsh
+        run: |
+          cmake --build build64 --config Release --target FruitySoundFont --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw "MSVC VST3 build failed" }
+      - uses: actions/download-artifact@v4
+        with:
+          name: proprietary-free-x86-helper
+          path: helper-stage
+      - name: Build correctly named installable candidate directory
+        shell: pwsh
+        run: |
+          $mods = @(Get-ChildItem "build64" -Filter "*.vst3" -Recurse -File | Where-Object { $_.Length -gt 20000 })
+          if ($mods.Count -ne 1) { throw "Expected exactly one compiled VST3 module; found $($mods.Count)" }
+          $name = "125A Fruity SoundFont Player.vst3"
+          $folder = Join-Path "stage" $name
+          $target = Join-Path $folder "Contents/x86_64-win"
+          $resources = Join-Path $folder "Contents/Resources"
+          New-Item -ItemType Directory -Force -Path $target, $resources | Out-Null
+          Copy-Item $mods[0].FullName (Join-Path $target $name)
+          Copy-Item "helper-stage/125A-Fruity-Helper32.exe" (Join-Path $resources "125A-Fruity-Helper32.exe")
+          $binary = Join-Path $target $name
+          $bytes = [IO.File]::ReadAllBytes((Resolve-Path $binary))
+          $pe = [BitConverter]::ToInt32($bytes, 0x3c)
+          if ([BitConverter]::ToUInt16($bytes, $pe + 4) -ne 0x8664) { throw "VST3 is not x64 PE" }
+          if ((Get-ChildItem $resources -File).Count -ne 1) { throw "Non-owned resources in bundle" }
+          Get-FileHash $binary -Algorithm SHA256
+          Write-Host "Staged native x64 VST3 + independently compiled x86 helper; original DLL absent."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: original-engine-vst3-development-candidate
+          path: stage/
+          if-no-files-found: error
+          retention-days: 7
