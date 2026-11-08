@@ -189,10 +189,10 @@ jobs:
           $mock = (Resolve-Path 'test-only-engine/fruity_mock_engine.dll').Path
           Copy-Item -LiteralPath $mock -Destination (Join-Path $resources 'FLSPro.dll')
           Copy-Item -LiteralPath 'tests/mock-bank.txt' -Destination (Join-Path $resources 'SynthBank.sf2')
-          $host = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
-          if ($host.Count -ne 1) { throw 'Independent native Test Lab audio host missing' }
+          $labHost = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
+          if ($labHost.Count -ne 1) { throw 'Independent native Test Lab audio host missing' }
           $wave = 'lab-results/bridge-midi-output.wav'
-          & $host[0].FullName --render "$plugin" "$wave"
+          & $labHost[0].FullName --render "$plugin" "$wave"
           if ($LASTEXITCODE -ne 0) { throw 'Actual Lab VST3 MIDI render failed' }
           if (!(Test-Path $wave)) { throw 'Missing native Lab output WAV' }
           python -c "import wave,sys; w=wave.open(sys.argv[1]); assert(w.getnchannels()==2 and w.getframerate()==44100 and w.getnframes()>300000); data=w.readframes(w.getnframes()); nz=sum(b!=0 for b in data); print('INDEPENDENT_REAL_VST3_MIDI_BRIDGE_PCM_NONZERO_BYTES',nz); sys.exit(0 if nz>1000 else 1)" "$wave"
@@ -200,7 +200,7 @@ jobs:
           Remove-Item -LiteralPath (Join-Path $resources 'FLSPro.dll') -Force
           Remove-Item -LiteralPath (Join-Path $resources 'SynthBank.sf2') -Force
           $silent = 'lab-results/bridge-negative-no-engine.wav'
-          & $host[0].FullName --render "$plugin" "$silent"
+          & $labHost[0].FullName --render "$plugin" "$silent"
           if ($LASTEXITCODE -ne 0) { throw 'Missing-engine VST3 host failed to degrade safely' }
           python -c "import wave,sys; w=wave.open(sys.argv[1]); data=w.readframes(w.getnframes()); print('INDEPENDENT_MISSING_ENGINE_NONZERO_BYTES',sum(b!=0 for b in data)); sys.exit(0 if not any(data) else 1)" "$silent"
           if ($LASTEXITCODE -ne 0) { throw 'Missing-engine negative PCM control unexpectedly produced sound' }
