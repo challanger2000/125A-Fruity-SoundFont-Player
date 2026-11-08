@@ -19,7 +19,7 @@ The code checks `0x10002AB0`'s return value and may call `0x100074A0` with `[edi
 
 ## MIDI dispatch: 0x10003110
 
-`QueueShortMessage` forwards three stack arguments plus a constant zero to `0x10002E80` and terminates with `ret 0x0C`. Its internal callee uses its second stack argument (at `[esp+8]` after `push ebp`) as an index into the SAME `0x1002A1F0` instance table, then checks for a null slot and returns error 5 if absent.
+`QueueShortMessage` forwards three stack arguments plus a constant zero to `0x10002E80` and terminates with `ret 0x0C`. Its internal callee uses its first stack argument (at `[esp+8]` after `push ebp`) as an index into the SAME `0x1002A1F0` instance table, then checks for a null slot and returns error 5 if absent.
 
 This establishes the presence of an instance-index argument, but the exact exported argument order, MIDI packing and timestamp semantics remain **unverified**.
 
