@@ -1,0 +1,8 @@
+LIBRARY "mockFLSPro"
+EXPORTS
+ InitSynthInstance=_InitSynthInstance@8
+ SetPolyphony=_SetPolyphony@8
+ LULoadSoundFont=_LULoadSoundFont@20
+ QueueShortMessage=_QueueShortMessage@12
+ RenderVoices=_RenderVoices@36
+ FreeSynthInstance=_FreeSynthInstance@4
