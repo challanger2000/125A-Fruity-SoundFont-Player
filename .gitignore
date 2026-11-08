@@ -1,0 +1,13 @@
+# Proprietary and unverified third-party binaries must never be published.
+*.dll
+*.exe
+*.sf2
+*.sf3
+*.zip
+*.7z
+*.rar
+*.vst3
+/build/
+/out/
+/artifacts/
+*.wav
