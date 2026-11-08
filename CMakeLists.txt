@@ -53,6 +53,7 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
    src/vst3/Factory.cpp)
  target_compile_features(FruitySoundFont PRIVATE cxx_std_23)
  target_include_directories(FruitySoundFont PRIVATE src)
+ target_compile_definitions(FruitySoundFont PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
  target_link_libraries(FruitySoundFont PRIVATE sdk)
  set_target_properties(FruitySoundFont PROPERTIES
    OUTPUT_NAME "125A Fruity SoundFont Player")
