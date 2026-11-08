@@ -1,0 +1,1 @@
+This is not an SF2 bank. It is a mock-only fixture to exercise ABI and WAV writing.
