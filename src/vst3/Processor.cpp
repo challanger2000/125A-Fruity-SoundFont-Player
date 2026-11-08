@@ -112,14 +112,15 @@ Steinberg::tresult PLUGIN_API Processor::process(Steinberg::Vst::ProcessData& da
 }
 Steinberg::tresult PLUGIN_API Processor::getState(Steinberg::IBStream* stream){
  if(!stream)return Steinberg::kInvalidArgument;
- Steinberg::IBStreamer out(stream,Steinberg::kLittleEndian);
- return out.writeInt32(0x31534641)?Steinberg::kResultOk:Steinberg::kResultFalse;
+ Steinberg::uint32 magic=0x31534641U;
+ Steinberg::int32 written=0;
+ return (stream->write(&magic,4,&written)==Steinberg::kResultOk && written==4)?Steinberg::kResultOk:Steinberg::kResultFalse;
 }
 Steinberg::tresult PLUGIN_API Processor::setState(Steinberg::IBStream* stream){
  if(!stream)return Steinberg::kInvalidArgument;
- Steinberg::IBStreamer in(stream,Steinberg::kLittleEndian);
- Steinberg::int32 magic=0;
- if(!in.readInt32(magic)||magic!=0x31534641)return Steinberg::kResultFalse;
+ Steinberg::uint32 magic=0;
+ Steinberg::int32 bytesRead=0;
+ if(stream->read(&magic,4,&bytesRead)!=Steinberg::kResultOk||bytesRead!=4||magic!=0x31534641U)return Steinberg::kResultFalse;
  return Steinberg::kResultOk;
 }
 } // namespace fruity

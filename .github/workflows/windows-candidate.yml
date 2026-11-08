@@ -23,6 +23,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path helper-stage | Out-Null
           Copy-Item "build32/Release/125A-Fruity-Helper32.exe" "helper-stage/125A-Fruity-Helper32.exe"
+          Copy-Item "build32/Release/125A-Fruity-Probe32.exe" "helper-stage/125A-Fruity-Probe32.exe"
           $p = [IO.File]::ReadAllBytes((Resolve-Path "helper-stage/125A-Fruity-Helper32.exe"))
           $pe = [BitConverter]::ToInt32($p, 0x3c)
           if ([BitConverter]::ToUInt16($p, $pe + 4) -ne 0x014c) { throw "Helper is not x86" }
