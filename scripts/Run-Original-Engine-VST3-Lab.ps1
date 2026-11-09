@@ -30,12 +30,13 @@ function Write-Result([string]$status,[string]$detail) {
 function Require-File([string]$path,[string]$label) {
  if(-not(Test-Path -LiteralPath $path -PathType Leaf)) {throw "Missing $label : $path"}
 }
-function Native-Render([string]$bundle,[string]$wave) {
+function Native-Render([string]$bundle,[string]$wave,[switch]$NoMidi,[switch]$Paced) {
  $psi=[Diagnostics.ProcessStartInfo]::new()
  $psi.FileName=[IO.Path]::GetFullPath($TestLabHost)
  # Windows PowerShell 5.1 uses .NET Framework (no ProcessStartInfo.ArgumentList).
  # Windows paths cannot contain double-quotes; quote both arguments.
- $psi.Arguments = '--render "' + $bundle + '" "' + $wave + '"'
+ $mode=if($NoMidi.IsPresent){'--render-offline-no-midi'}elseif($Paced.IsPresent){'--render-realtime-paced'}else{'--render-offline'}
+ $psi.Arguments = $mode + ' "' + $bundle + '" "' + $wave + '"'
  $psi.RedirectStandardOutput=$true
  $psi.RedirectStandardError=$true
  $psi.UseShellExecute=$false
@@ -73,6 +74,28 @@ function Count-PCM([string]$wave){
  $n=0
  for($i=44;$i -lt 44+[int]$bytes;$i++){if($b[$i] -ne 0){$n++}}
  return $n
+}
+
+function Count-HardSilenceCuts([string]$path) {
+ # Detect exactly the original 512-frame aligned cut-to-zero artifacts.
+ $b=[IO.File]::ReadAllBytes($path)
+ $frames=[int]([Math]::Floor(([double]$b.Length-44)/6))
+ $cuts=0
+ for($frame=512;$frame+64 -lt $frames;$frame+=512){
+   $prior=44+($frame-1)*6
+   $v=[int]$b[$prior] -bor ([int]$b[$prior+1] -shl 8) -bor ([int]$b[$prior+2] -shl 16)
+   if($v -ge 8388608){$v-=16777216}
+   $r=[int]$b[$prior+3] -bor ([int]$b[$prior+4] -shl 8) -bor ([int]$b[$prior+5] -shl 16)
+   if($r -ge 8388608){$r-=16777216}
+   if([Math]::Max([Math]::Abs($v),[Math]::Abs($r)) -lt 167772){continue}
+   $at=44+$frame*6
+   $allZero=$true
+   for($i=0;$i -lt 384;$i++) {
+     if($b[$at+$i] -ne 0){$allZero=$false;break}
+   }
+   if($allZero){$cuts++}
+ }
+ return $cuts
 }
 try {
  if($env:OS -ne 'Windows_NT'){throw 'This test requires Windows'}
@@ -117,6 +140,16 @@ try {
  $positiveBytes=Count-PCM $positive
  $log.Add("MIDI_RENDER_NONZERO_PCM_BYTES=$positiveBytes")
  if($positiveBytes -lt 2000){throw 'SILENT: original VST3 helper produced no MIDI-triggered sound'}
+ $hardCuts=Count-HardSilenceCuts $positive
+ $log.Add("OFFLINE_HARD_SILENCE_CUTS=$hardCuts")
+ if($hardCuts -gt 3){throw "OFFLINE_AUDIO_GLITCH: $hardCuts block-aligned hard cuts to silence"}
+ $withoutMidi=Join-Path $OutputDirectory 'VST3-Negative-No-MIDI.wav'
+ if(Test-Path -LiteralPath $withoutMidi){Remove-Item -LiteralPath $withoutMidi -Force}
+ Native-Render $copy $withoutMidi -NoMidi
+ $withoutMidiBytes=Count-PCM $withoutMidi
+ $log.Add("NO_MIDI_NONZERO_PCM_BYTES=$withoutMidiBytes")
+ if($withoutMidiBytes -ne 0){throw 'No-MIDI negative control unexpectedly produced sound'}
+ 
  Remove-Item -LiteralPath (Join-Path $resources 'FLSPro.dll') -Force
  Remove-Item -LiteralPath (Join-Path $resources 'SynthBank.sf2') -Force
  $negative=Join-Path $OutputDirectory 'VST3-Negative-No-Engine.wav'
@@ -125,7 +158,7 @@ try {
  $negativeBytes=Count-PCM $negative
  $log.Add("NO_ENGINE_NONZERO_PCM_BYTES=$negativeBytes")
  if($negativeBytes -ne 0){throw 'Negative control produced PCM without engine'}
- Write-Result 'PASS' 'Actual x64 VST3/32-bit engine audible and missing-engine silent; DAW/release NOT VERIFIED'
+ Write-Result 'PASS' 'Offline native VST3 original engine: audible, glitch-free, no-MIDI/missing-engine negative controls silent; paced realtime and DAW/release NOT VERIFIED'
  exit 0
 }catch{
  Write-Result 'FAIL' $_.Exception.Message
