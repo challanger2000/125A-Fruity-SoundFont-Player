@@ -33,9 +33,9 @@ function Require-File([string]$path,[string]$label) {
 function Native-Render([string]$bundle,[string]$wave) {
  $psi=[Diagnostics.ProcessStartInfo]::new()
  $psi.FileName=[IO.Path]::GetFullPath($TestLabHost)
- $psi.ArgumentList.Add('--render')
- $psi.ArgumentList.Add($bundle)
- $psi.ArgumentList.Add($wave)
+ # Windows PowerShell 5.1 uses .NET Framework (no ProcessStartInfo.ArgumentList).
+ # Windows paths cannot contain double-quotes; quote both arguments.
+ $psi.Arguments = '--render "' + $bundle + '" "' + $wave + '"'
  $psi.RedirectStandardOutput=$true
  $psi.RedirectStandardError=$true
  $psi.UseShellExecute=$false
@@ -45,7 +45,7 @@ function Native-Render([string]$bundle,[string]$wave) {
  try {
   if(-not $proc.Start()) {throw 'Lab host could not start'}
   if(-not $proc.WaitForExit(90000)) {
-   $proc.Kill($true)
+   $proc.Kill()
    throw 'Lab host timed out'
   }
   $out=$proc.StandardOutput.ReadToEnd()
