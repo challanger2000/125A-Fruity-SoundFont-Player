@@ -221,6 +221,49 @@ jobs:
           python -c "import wave,sys; w=wave.open(sys.argv[1]); data=w.readframes(w.getnframes()); print('INDEPENDENT_MISSING_ENGINE_NONZERO_BYTES',sum(b!=0 for b in data)); sys.exit(0 if not any(data) else 1)" "$silent"
           if ($LASTEXITCODE -ne 0) { throw 'Missing-engine negative PCM control unexpectedly produced sound' }
           Write-Host 'PASS exact VST3->Win32 helper->PCM with test-only fake engine; genuine FLSPro not executed'
+      - name: Prove owner ZIP to real-VST3 Lab launcher with good/missing-engine cases (fake engine)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root = 'lab-results/local-owner-kit-smoke'
+          $src = Join-Path $root 'input/Fruity Soundfont Player'
+          New-Item -ItemType Directory -Force -Path (Join-Path $src 'Data') | Out-Null
+          Copy-Item 'test-only-engine/fruity_mock_engine.dll' (Join-Path $src 'FLSPro.dll')
+          Copy-Item 'tests/mock-bank.txt' (Join-Path $src 'Data/Default.sf2')
+          $zip = Join-Path $root 'Fake-Original-Archive.zip'
+          Compress-Archive -Path $src -DestinationPath $zip -Force
+          $engSha = (Get-FileHash -LiteralPath (Join-Path $src 'FLSPro.dll') -Algorithm SHA256).Hash
+          $bankSha = (Get-FileHash -LiteralPath (Join-Path $src 'Data/Default.sf2') -Algorithm SHA256).Hash
+          $bundle=(Resolve-Path 'candidate/125A Fruity SoundFont Player.vst3').Path
+          $lab = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
+          if ($lab.Count -ne 1) { throw 'Missing exact central Lab host' }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/Run-Original-Engine-VST3-Lab.ps1 -OriginalZip $zip -Vst3Bundle $bundle -TestLabHost $lab[0].FullName -OutputDirectory "$root/results" -ExpectedEngineSha256 $engSha -ExpectedBankSha256 $bankSha -ApproveExecution
+          if ($LASTEXITCODE -ne 0) { throw 'Owner test runner failed positive or negative mock engine VST3 checks' }
+          $report = Get-Content "$root/results/VST3-TEST-ERGEBNIS.txt" -Raw
+          if ($report -notmatch 'STATUS=PASS' -or $report -notmatch 'ENGINE_IDENTITY=MOCK_ONLY' -or $report -notmatch 'NO_ENGINE_NONZERO_PCM_BYTES=0' -or $report -match 'ENGINE_IDENTITY=USER_ORIGINAL_MATCH') {
+            throw 'Test runner mislabels mock engine or fails negative acceptance'
+          }
+          Write-Host 'Owner-facing launch script mock e2e PASS; no original proprietary engine run in CI'
+      - name: Stage transferable local original-DLL VST3 Test Lab kit (no third-party assets)
+        shell: pwsh
+        run: |
+          $root='owner-test-kit'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          Copy-Item -LiteralPath 'candidate/125A Fruity SoundFont Player.vst3' -Destination $root -Recurse -Force
+          Copy-Item 'scripts/Run-Original-Engine-VST3-Lab.bat' $root
+          Copy-Item 'scripts/Run-Original-Engine-VST3-Lab.ps1' $root
+          $lab = @(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
+          if ($lab.Count -ne 1){ throw 'Central Lab host build missing' }
+          Copy-Item $lab[0].FullName (Join-Path $root '125A_Test_Lab_Host.exe')
+          $resources=Join-Path $root '125A Fruity SoundFont Player.vst3/Contents/Resources'
+          if ((Get-ChildItem $resources -File | Where-Object {$_.Name -ne '125A-Fruity-Helper32.exe'}).Count -ne 0) { throw 'Proprietary or fake engine leaked into delivery' }
+          'On a disposable isolated Windows VM: place your already-supplied "Fruity Soundfont Player.zip" next to Run-Original-Engine-VST3-Lab.bat. Run the BAT. Send LAB-ERGEBNIS/VST3-TEST-ERGEBNIS.txt. No Python or manual DLL copying required. Do NOT distribute the proprietary DLL.' | Set-Content -Encoding UTF8 (Join-Path $root 'READ-ME-FIRST.txt')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: original-engine-owner-vst3-lab-kit
+          path: owner-test-kit/
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()
         with:
