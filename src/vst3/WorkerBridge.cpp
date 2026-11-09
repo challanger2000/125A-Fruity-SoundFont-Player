@@ -73,11 +73,39 @@ bool WorkerBridge::isReady() const noexcept{
  return shared_ && read(&shared_->status)==ipc::kReady;
 }
 bool WorkerBridge::process(int frames,const ipc::MidiMessage* events,int eventCount,
-                           float* destination) noexcept{
+                           float* destination,bool offline) noexcept{
  if(frames<0||frames>ipc::kMaxFrames||!destination)return false;
  std::fill_n(destination,static_cast<std::size_t>(frames)*2U,0.0f);
  if(!isReady())return false;
  if(eventCount<0||eventCount>ipc::kMaxMidi)return false;
+ if(offline){
+   // The host explicitly requested VST3 kOffline: synchronize to every
+   // rendered chunk. Do not silently substitute whole zero blocks when
+   // an offline test host renders much faster than real-world playback.
+   // Guard the response with a deadline and the child process state.
+   auto awaitResponse=[&](long sequence)->bool{
+     for(unsigned attempt=0;attempt<5000;attempt++){
+       if(read(&shared_->responseSequence)==sequence)return true;
+       if(process_&&WaitForSingleObject(process_,0)==WAIT_OBJECT_0)return false;
+       Sleep(1); // offline only, NEVER the realtime callback
+     }
+     return false;
+   };
+   const long pending=read(&shared_->requestSequence);
+   if(pending!=read(&shared_->responseSequence) && !awaitResponse(pending))return false;
+   shared_->requestFrames=frames;
+   shared_->requestEvents=eventCount;
+   for(int i=0;i<eventCount;i++)shared_->midi[i]=events[i];
+   const long submitted=pending+1;
+   requested_=submitted;
+   InterlockedExchange(&shared_->requestSequence,submitted);
+   SetEvent(event_);
+   if(!awaitResponse(submitted))return false;
+   played_=submitted;
+   if(shared_->responseFrames!=frames||shared_->responseError!=0)return false;
+   std::copy_n(shared_->responsePCM,static_cast<std::size_t>(frames)*2U,destination);
+   return true;
+ }
  const long completed=read(&shared_->responseSequence);
  bool audible=false;
  if(completed!=played_){
