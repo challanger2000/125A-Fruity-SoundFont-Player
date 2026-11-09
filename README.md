@@ -27,6 +27,6 @@ The branch workflow compiles the x86 worker and the x64 native VST3 without the 
 
 ## Explicit blockers
 
-The real original x86 engine has **NOT** rendered verified audio in an isolated Windows environment. The four optional RenderVoices parameters require a real test. The first bridge uses a one-block pipeline, drops MIDI on worker congestion and cannot guarantee audio continuity across varying host blocks. NoteOff retry, realtime deadlines, host latency accuracy, plugin presets/state, sample-rate behavior, GUI, DAW/ASIO testing and distribution rights are NOT VERIFIED. Never call a passing mock test proof of actual synthesis. No release approval.
+The uploaded Windows report confirms **finite nonzero PCM from the original x86 engine** (see docs/ORIGINAL-X86-PCM-EVIDENCE.md); genuine audio *through the 64-bit VST3* remains NOT VERIFIED. This original-engine result is owner-supplied, not independent CI. The four optional RenderVoices parameters require a real test. The first bridge uses a one-block pipeline, drops MIDI on worker congestion and cannot guarantee audio continuity across varying host blocks. NoteOff retry, realtime deadlines, host latency accuracy, plugin presets/state, sample-rate behavior, GUI, DAW/ASIO testing and distribution rights are NOT VERIFIED. Never call a passing mock test proof of actual synthesis. No release approval.
 
 Follow the 125A Engineering START-HERE.md and its complete mandatory guardrails. Code development takes place on the research/original-engine-abi branch, not main.
