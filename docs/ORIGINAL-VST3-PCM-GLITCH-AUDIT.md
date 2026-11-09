@@ -31,7 +31,18 @@ In GitHub Actions run [42541701486](https://github.com/challanger2000/125A-Fruit
 
 - `--render-realtime-paced` native VST3 with fake FLSPro export DLL: 352,800 frames, 69,023 nonzero frames, **0 hard cuts**, 0 hard starts.
 - The actual source-built user-facing BAT/PowerShell test kit with fake FLSPro: `STATUS=PASS`, `MIDI_RENDER_NONZERO_PCM_BYTES=418402`, `OFFLINE_HARD_SILENCE_CUTS=0`, `NO_MIDI_NONZERO_PCM_BYTES=0`, `NO_ENGINE_NONZERO_PCM_BYTES=0`. Engine identity correctly `MOCK_ONLY`.
-- The true original `FLSPro.dll` **has NOT** been run against the new fixed VST3 build in a disposable isolated Windows machine. Therefore original-engine patched VST3 audio and full runtime QA remain **NOT RUN**.
+- This paragraph describes the **earlier CI-only checkpoint**. Genuine original-engine acceptance results arrived later (below), so no longer regard the original-engine offline or paced 44.1 kHz test cases as NOT RUN; comprehensive runtime QA remains NOT VERIFIED.
 - The realtime path is **not guaranteed free of loss** under scheduling jitter/CPU stress because the one-block nonblocking queue lacks a sufficient backlog buffer. Offline fix does not resolve this architectural limitation.
 
 **Release approval: NO.** Preset/GUI/automation, multiple banks, hardware/DAW testing and licensing distribution remain open.
+
+## New original-engine Windows evidence, user-provided 2026-11-09
+
+1. First owner-local corrected VST3 file `VST3-TEST-ERGEBNIS(1).txt`: `STATUS=PASS`, original engine identity confirmed, **offline 0 hard cuts**, 1,912,191 nonzero PCM bytes, no MIDI and no engine both 0 nonzero bytes. This does **not** cover realtime.
+2. Follow-up `VST3-TEST-ERGEBNIS(2).txt`: actual FLSPro.dll original SHA-256 `4c592e1b21640bdea0bfa6f09bde6e882d88f1a9556f4e6e0e77e986fbe65a0f` and VST3 module SHA-256 `b1390dadf88f48a506ccd80df10f0783f42e80721c9d84b8deb3f542283bdba2`; 44,100 Hz, stereo PCM24, 512 samples/block, 4 bars 120 BPM, 352,800 frames, 32 MIDI events. Offline: 1,912,191 nonzero PCM bytes and 0 block-aligned hard cuts. Paced realtime: 1,910,199 nonzero PCM bytes, 0 block-aligned hard cuts, `REALTIME_PACED_ENGINE_GATE=PASS`. Both peak 0.263827. No MIDI: 0; no engine: 0. Host execution exit code 0 in all four cases. `STATUS=PASS`, `RELEASE_APPROVED=NO`.
+
+### Coverage boundaries
+
+The zero-hard-cut metric comes from a selective detector targeting 512-frame-aligned sudden mute of the next 64 frames, not a full waveform differential against a gold reference. The small difference in nonzero PCM bytes is not enough to establish exact sample equivalence or synchronization. A single paced host cycle also does not prove realtime reliability during CPU/DPC interruptions, especially given the single outstanding worker request and silent MIDI drop when busy; the independent mock-based paced CI previously measured isolated hard cuts (1–2) even with the same architecture. DAW/ASIO, varying buffer sizes, 48/96 kHz, preset changes, automation and repeated stress tests remain NOT RUN/NOT VERIFIED. Retain [Issue #1](https://github.com/challanger2000/125A-Fruity-SoundFont-Player/issues/1) as OPEN until these conditions are properly addressed, not only until the single successful user test.
+
+**Current release status: NO.** This is a validated prototype for the specified host modes, not a production-ready plugin.
