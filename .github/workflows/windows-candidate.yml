@@ -258,7 +258,7 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/Run-Original-Engine-VST3-Lab.ps1 -OriginalZip $zip -Vst3Bundle $bundle -TestLabHost $lab[0].FullName -OutputDirectory "$root/results" -ExpectedEngineSha256 $engSha -ExpectedBankSha256 $bankSha -ApproveExecution
           if ($LASTEXITCODE -ne 0) { throw 'Owner test runner failed positive or negative mock engine VST3 checks' }
           $report = Get-Content "$root/results/VST3-TEST-ERGEBNIS.txt" -Raw
-          if ($report -notmatch 'STATUS=PASS' -or $report -notmatch 'ENGINE_IDENTITY=MOCK_ONLY' -or $report -notmatch 'NO_MIDI_NONZERO_PCM_BYTES=0' -or $report -notmatch 'OFFLINE_HARD_SILENCE_CUTS=0' -or $report -notmatch 'NO_ENGINE_NONZERO_PCM_BYTES=0' -or $report -match 'ENGINE_IDENTITY=USER_ORIGINAL_MATCH') {
+          if ($report -notmatch 'STATUS=PASS' -or $report -notmatch 'ENGINE_IDENTITY=MOCK_ONLY' -or $report -notmatch 'NO_MIDI_NONZERO_PCM_BYTES=0' -or $report -notmatch 'OFFLINE_HARD_SILENCE_CUTS=0' -or $report -notmatch 'REALTIME_PACED_ENGINE_GATE=PASS' -or $report -notmatch 'REALTIME_PACED_HARD_SILENCE_CUTS=0' -or $report -notmatch 'NO_ENGINE_NONZERO_PCM_BYTES=0' -or $report -match 'ENGINE_IDENTITY=USER_ORIGINAL_MATCH') {
             throw 'Test runner mislabels mock engine or fails negative acceptance'
           }
           Write-Host 'Owner-facing launch script mock e2e PASS; no original proprietary engine run in CI'
