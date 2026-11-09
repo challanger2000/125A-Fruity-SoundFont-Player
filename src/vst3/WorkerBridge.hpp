@@ -18,10 +18,10 @@ class WorkerBridge final {
   WorkerBridge& operator=(const WorkerBridge&)=delete;
   bool start(std::uint32_t sampleRate);
   void stop() noexcept;
-  // Realtime path: never waits, allocates, or loads files.
-  // One-block pipeline is a candidate, not validated realtime audio.
+  // Realtime: nonblocking; offline host: bounded cross-process synchronous render.
+  // The latter must never be entered from the realtime audio callback.
   bool process(int frames,const ipc::MidiMessage* events,int eventCount,
-               float* interleavedOutput) noexcept;
+               float* interleavedOutput,bool offline=false) noexcept;
   bool isReady() const noexcept;
  private:
   HANDLE mapping_=nullptr,event_=nullptr,process_=nullptr,thread_=nullptr;
