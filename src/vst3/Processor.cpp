@@ -30,7 +30,8 @@ Steinberg::tresult PLUGIN_API Processor::setupProcessing(Steinberg::Vst::Process
    return Steinberg::kInvalidArgument;
  const auto rc=AudioEffect::setupProcessing(setup);
  if(rc!=Steinberg::kResultOk)return rc;
- latency_=static_cast<Steinberg::uint32>(setup.maxSamplesPerBlock);
+ latency_=setup.processMode==Steinberg::Vst::kOffline ? 0U :
+          static_cast<Steinberg::uint32>(setup.maxSamplesPerBlock);
  configured_=false;
  // Actual original engine is external. Never substitute a mock in a VST3.
  // This is a best-effort development candidate; the unvalidated bridge may
@@ -88,7 +89,8 @@ Steinberg::tresult PLUGIN_API Processor::process(Steinberg::Vst::ProcessData& da
    }
  }
  if(frames>0) {
-   if(configured_)bridge_.process(frames,events_.data(),count,mix_.data());
+   if(configured_)bridge_.process(frames,events_.data(),count,mix_.data(),
+       data.processMode==Steinberg::Vst::kOffline);
    else std::fill_n(mix_.data(),static_cast<size_t>(frames)*2U,0.0f);
  }
  if(data.numOutputs<1||!data.outputs)return Steinberg::kResultOk;
