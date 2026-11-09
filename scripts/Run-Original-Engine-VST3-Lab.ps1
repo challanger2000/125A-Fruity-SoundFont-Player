@@ -143,6 +143,20 @@ try {
  $hardCuts=Count-HardSilenceCuts $positive
  $log.Add("OFFLINE_HARD_SILENCE_CUTS=$hardCuts")
  if($hardCuts -gt 3){throw "OFFLINE_AUDIO_GLITCH: $hardCuts block-aligned hard cuts to silence"}
+ $paced=Join-Path $OutputDirectory 'VST3-Realtime-Paced.wav'
+ if(Test-Path -LiteralPath $paced){Remove-Item -LiteralPath $paced -Force}
+ Native-Render $copy $paced -Paced
+ $pacedBytes=Count-PCM $paced
+ $log.Add("REALTIME_PACED_NONZERO_PCM_BYTES=$pacedBytes")
+ if($pacedBytes -lt 2000){throw 'REALTIME_PACED_SILENT: original engine produced no timed MIDI output'}
+ $pacedCuts=Count-HardSilenceCuts $paced
+ $log.Add("REALTIME_PACED_HARD_SILENCE_CUTS=$pacedCuts")
+ if($pacedCuts -gt 3){throw "REALTIME_PACED_AUDIO_GLITCH: $pacedCuts block-aligned cuts to silence"}
+ if([double]$pacedBytes -lt 0.6*[double]$positiveBytes){
+   throw "REALTIME_PACED_AUDIO_LOSS: $pacedBytes nonzero bytes versus $positiveBytes offline bytes"
+ }
+ $log.Add('REALTIME_PACED_ENGINE_GATE=PASS')
+
  $withoutMidi=Join-Path $OutputDirectory 'VST3-Negative-No-MIDI.wav'
  if(Test-Path -LiteralPath $withoutMidi){Remove-Item -LiteralPath $withoutMidi -Force}
  Native-Render $copy $withoutMidi -NoMidi
@@ -158,7 +172,7 @@ try {
  $negativeBytes=Count-PCM $negative
  $log.Add("NO_ENGINE_NONZERO_PCM_BYTES=$negativeBytes")
  if($negativeBytes -ne 0){throw 'Negative control produced PCM without engine'}
- Write-Result 'PASS' 'Offline native VST3 original engine: audible, glitch-free, no-MIDI/missing-engine negative controls silent; paced realtime and DAW/release NOT VERIFIED'
+ Write-Result 'PASS' 'Original x86 engine through x64 VST3: offline and paced realtime PCM gates, negative controls passed; DAW/ASIO and release remain NOT VERIFIED'
  exit 0
 }catch{
  Write-Result 'FAIL' $_.Exception.Message
