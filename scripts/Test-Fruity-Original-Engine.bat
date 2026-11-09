@@ -9,7 +9,7 @@ set "WORKDIR=%TEMP%\125A_Fruity_%RANDOM%_%RANDOM%"
 set "RESULT=%ROOT%TEST_ERGEBNIS.txt"
 set "WAV=%ROOT%TestOriginal.wav"
 set "RC=0"
-> "%RESULT%" echo 125A-Fruity-Original-Engine Test Lab - status: NOT RUN
+> "%RESULT%" echo 125A-Fruity-Original-Engine Test Lab - status: STARTED
 if not exist "%PROBE%" (
   >> "%RESULT%" echo ERROR PRECHECK: probe32 executable missing
   exit /b 2
@@ -55,6 +55,8 @@ if not exist "%WAV%" (
   goto :done
 )
 >> "%RESULT%" echo PASS ORIGINAL ENGINE PCM PROBE
+>> "%RESULT%" echo RESULT=PASS
 :done
+if not "%RC%"=="0" >> "%RESULT%" echo RESULT=FAIL
 if exist "%WORKDIR%" rmdir /s /q "%WORKDIR%" >nul 2>&1
 exit /b %RC%
