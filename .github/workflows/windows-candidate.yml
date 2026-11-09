@@ -164,10 +164,10 @@ jobs:
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/challanger2000/125A-Plugin-Test-Lab.git test-lab
           if ($LASTEXITCODE -ne 0) { throw 'Could not clone central Test Lab' }
-          git -C test-lab checkout bc839e345bfc5657f9196f7db8d6945584e1bec7
+          git -C test-lab checkout 018b4a18479a79980dbbdcc80c9c9a8a6ed54cda
           if ($LASTEXITCODE -ne 0) { throw 'Could not checkout pinned Lab commit' }
           $sha = git -C test-lab rev-parse HEAD
-          if ($sha -ne 'bc839e345bfc5657f9196f7db8d6945584e1bec7') { throw 'Wrong Test Lab source' }
+          if ($sha -ne '018b4a18479a79980dbbdcc80c9c9a8a6ed54cda') { throw 'Wrong Test Lab source' }
           cmake -S test-lab -B lab-build -G 'Visual Studio 17 2022' -A x64
           if ($LASTEXITCODE -ne 0) { throw 'Test Lab configure failed' }
           cmake --build lab-build --config Release --target TestLabHost TestLabStateStress TestLabGUI --parallel 3
@@ -221,6 +221,24 @@ jobs:
           python -c "import wave,sys; w=wave.open(sys.argv[1]); data=w.readframes(w.getnframes()); print('INDEPENDENT_MISSING_ENGINE_NONZERO_BYTES',sum(b!=0 for b in data)); sys.exit(0 if not any(data) else 1)" "$silent"
           if ($LASTEXITCODE -ne 0) { throw 'Missing-engine negative PCM control unexpectedly produced sound' }
           Write-Host 'PASS exact VST3->Win32 helper->PCM with test-only fake engine; genuine FLSPro not executed'
+      - name: Prove paced realtime MIDI PCM has no hard 512-sample dropouts (fake engine)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $plugin=(Resolve-Path 'candidate/125A Fruity SoundFont Player.vst3').Path
+          $resources=Join-Path $plugin 'Contents/Resources'
+          Copy-Item 'test-only-engine/fruity_mock_engine.dll' (Join-Path $resources 'FLSPro.dll')
+          Copy-Item 'tests/mock-bank.txt' (Join-Path $resources 'SynthBank.sf2')
+          $nativeHost=@(Get-ChildItem lab-build -Recurse -File -Filter '125A_Test_Lab_Host.exe')
+          if($nativeHost.Count -ne 1){throw 'Missing central Lab host'}
+          $wave='lab-results/bridge-realtime-paced.wav'
+          & $nativeHost[0].FullName --render-realtime-paced "$plugin" "$wave"
+          if($LASTEXITCODE -ne 0){throw 'Paced VST3 native host render failed'}
+          python tests/check_pcm_glitches.py --wav "$wave" --max-cuts 3 --min-audible-frames 1000
+          if($LASTEXITCODE -ne 0){throw 'Paced realtime VST3 callback returned dropped PCM blocks'}
+          Remove-Item -LiteralPath (Join-Path $resources 'FLSPro.dll') -Force
+          Remove-Item -LiteralPath (Join-Path $resources 'SynthBank.sf2') -Force
+          Write-Host 'Paced realtime native Lab mock PCM continuity PASS; original engine NOT RUN in CI'
       - name: Prove owner ZIP to real-VST3 Lab launcher with good/missing-engine cases (fake engine)
         shell: pwsh
         run: |
@@ -240,7 +258,7 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File scripts/Run-Original-Engine-VST3-Lab.ps1 -OriginalZip $zip -Vst3Bundle $bundle -TestLabHost $lab[0].FullName -OutputDirectory "$root/results" -ExpectedEngineSha256 $engSha -ExpectedBankSha256 $bankSha -ApproveExecution
           if ($LASTEXITCODE -ne 0) { throw 'Owner test runner failed positive or negative mock engine VST3 checks' }
           $report = Get-Content "$root/results/VST3-TEST-ERGEBNIS.txt" -Raw
-          if ($report -notmatch 'STATUS=PASS' -or $report -notmatch 'ENGINE_IDENTITY=MOCK_ONLY' -or $report -notmatch 'NO_ENGINE_NONZERO_PCM_BYTES=0' -or $report -match 'ENGINE_IDENTITY=USER_ORIGINAL_MATCH') {
+          if ($report -notmatch 'STATUS=PASS' -or $report -notmatch 'ENGINE_IDENTITY=MOCK_ONLY' -or $report -notmatch 'NO_MIDI_NONZERO_PCM_BYTES=0' -or $report -notmatch 'OFFLINE_HARD_SILENCE_CUTS=0' -or $report -notmatch 'NO_ENGINE_NONZERO_PCM_BYTES=0' -or $report -match 'ENGINE_IDENTITY=USER_ORIGINAL_MATCH') {
             throw 'Test runner mislabels mock engine or fails negative acceptance'
           }
           Write-Host 'Owner-facing launch script mock e2e PASS; no original proprietary engine run in CI'
